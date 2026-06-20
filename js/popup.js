@@ -127,7 +127,8 @@ function AddMedia(data, currentTab = true) {
                     <div id="catDownFFmpeg"><img src="img/send2ffmpeg.svg" class="icon send2ffmpeg" title="${i18n.sendFfmpeg}"/></div>
                     <div><img src="img/invoke.svg" class="icon invoke" title="${i18n.invoke}"/></div>
                 </div>
-                <a href="${data.url}" target="_blank" download="${data.downFileName}">${data.url}</a>
+                <a href="${data.url}" target="_blank" download="${data.downFileName}">${data.url}</a><br>
+                <a href="${data.url}" target="_blank" download="${data.title}">${data.url}</a>
                 <br>
                 <img id="screenshots" class="hide"/>
                 <video id="preview" class="hide" controls></video>
