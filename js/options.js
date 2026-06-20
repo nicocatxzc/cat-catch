@@ -18,19 +18,25 @@ chrome.storage.sync.get(G.OptionLists, function (items) {
     $(`<style>${items.css}</style>`).appendTo("head");
     const $extList = $("#extList");
     for (let key in items.Ext) {
-        $extList.append(Gethtml("Ext", { ext: items.Ext[key].ext, size: items.Ext[key].size, state: items.Ext[key].state }));
+        if (items.Ext[key].operator === undefined) {
+            items.Ext[key].operator = ">=";
+        }
+        $extList.append(Gethtml("Ext", items.Ext[key]));
     }
     const $typeList = $("#typeList");
     for (let key in items.Type) {
-        $typeList.append(Gethtml("Type", { type: items.Type[key].type, size: items.Type[key].size, state: items.Type[key].state }));
+        if (items.Type[key].operator === undefined) {
+            items.Type[key].operator = ">=";
+        }
+        $typeList.append(Gethtml("Type", items.Type[key]));
     }
     const $regexList = $("#regexList");
     for (let key in items.Regex) {
-        $regexList.append(Gethtml("Regex", { type: items.Regex[key].type, regex: items.Regex[key].regex, ext: items.Regex[key].ext, blackList: items.Regex[key].blackList, state: items.Regex[key].state }));
+        $regexList.append(Gethtml("Regex", items.Regex[key]));
     }
     const $blockUrlList = $("#blockUrlList");
     for (let key in items.blockUrl) {
-        $blockUrlList.append(Gethtml("blockUrl", { url: items.blockUrl[key].url, state: items.blockUrl[key].state }));
+        $blockUrlList.append(Gethtml("blockUrl", items.blockUrl[key]));
     }
     setTimeout(() => {
         for (let key in items) {
@@ -46,11 +52,11 @@ chrome.storage.sync.get(G.OptionLists, function (items) {
 
 //新增格式
 $("#AddExt").bind("click", function () {
-    $("#extList").append(Gethtml("Ext", { state: true }));
+    $("#extList").append(Gethtml("Ext", { operator: ">=", state: true }));
     $("#extList [name=text]").last().focus();
 });
 $("#AddType").bind("click", function () {
-    $("#typeList").append(Gethtml("Type", { state: true }));
+    $("#typeList").append(Gethtml("Type", { operator: ">=", state: true }));
     $("#typeList [name=text]").last().focus();
 });
 $("#AddRegex").bind("click", function () {
@@ -84,11 +90,11 @@ function Gethtml(Type, Param = new Object()) {
     switch (Type) {
         case "Ext":
             html = `<td><input type="text" value="${Param.ext ? Param.ext : ""}" name="text" placeholder="${i18n.suffix}" class="ext"></td>`
-            html += `<td><input type="number" value="${Param.size ? Param.size : 0}" class="size" name="size">KB</td>`
+            html += `<td><input type="text" value="${Param.operator == ">=" || Param.operator == "~" ? "" : Param.operator}${Param.size ? Param.size : 0} ${Param.unit ? Param.unit : "KB"}" class="size" name="size"></td>`
             break;
         case "Type":
             html = `<td><input type="text" value="${Param.type ? Param.type : ""}" name="text" placeholder="${i18n.type}" class="type"></td>`
-            html += `<td><input type="number" value="${Param.size ? Param.size : 0}" class="size" name="size">KB</td>`
+            html += `<td><input type="text" value="${Param.operator == ">=" || Param.operator == "~" ? "" : Param.operator}${Param.size ? Param.size : 0} ${Param.unit ? Param.unit : "KB"}" class="size" name="size"></td>`
             break;
         case "Regex":
             html = `<td><input type="text" value="${Param.type ? Param.type : ""}" name="type" class="regexType"></td>`
@@ -170,7 +176,7 @@ $("[save='input']").on("input", function () {
 });
 // 调试模式 使用网页标题做文件名 使用PotPlayer预览 显示网站图标 刷新自动清理
 $("[save='click']").bind("click", function () {
-    chrome.storage.sync.set({ [this.id]: $(this).prop('checked') });
+    chrome.storage.sync.set({ [this.id]: this.checked });
 });
 // [save='select'] 元素 储存
 $("[save='select']").on("change", function () {
@@ -336,37 +342,72 @@ $("#importOptions").bind("click", function () {
     $("#importOptionsFile").click();
 });
 
+function SaveGetVal(Obj) {
+    let text = Obj.find("[name=text]").val()?.trim();
+    let size = Obj.find("[name=size]").val()?.trim();
+    let state = Obj.find("[name=state]").prop("checked");
+
+    // 提取size中的单位
+    const unitMatch = size.match(/(KB|MB|GB|B|Byte)/i);
+    let unit = "KB"; // 默认单位
+    if (unitMatch) {
+        unit = unitMatch[0].toUpperCase();
+        size = size.replace(unitMatch[0], "").trim(); // 移除单位部分
+    }
+
+    // size 只保留操作符号 和 数字 和 范围符号 - 和 中间的空格
+    size = size.replace(/[^\d><=!-\s]/g, "");
+
+    let operator = ">=";    // 默认使用大于等于符号
+
+    // 判断是否范围格式 如果存在 - 则分离 前后
+    const rangeMatch = size.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch) { operator = "~"; }
+
+    // 比较符号
+    const operatorMatch = size.match(/^(>=|<=|>|<|=|!=)/);
+    if (operatorMatch) {
+        operator = operatorMatch[0];
+        size = parseInt(size.replace(operator, ""));
+    }
+    if (operator != "~") {
+        size = parseInt(size);
+        if (isNaN(size)) { size = 0; }
+    }
+    if (isEmpty(size)) { size = 0; }
+    text = text.toLowerCase();
+
+    return { text, size, operator, unit, state };
+}
+
 // 保存 后缀 类型 正则 配置
 function Save(option, sec = 0) {
     clearTimeout(debounce);
     debounce = setTimeout(() => {
         if (option == "Ext") {
             let Ext = new Array();
-            $("#extList tr").each(function () {
-                const _this = $(this);
-                let GetText = _this.find("[name=text]").val();
-                let GetSize = parseInt(_this.find("[name=size]").val());
-                let GetState = _this.find("[name=state]").prop("checked");
-                if (isEmpty(GetText)) { return true; }
-                if (isEmpty(GetSize)) { GetSize = 0; }
-                Ext.push({ ext: GetText.toLowerCase(), size: GetSize, state: GetState });
+            $("#extList tr").each(function (index) {
+                if (index === 0) return true;
+
+                const { text, size, operator, unit, state } = SaveGetVal($(this));
+
+                if (isEmpty(text)) { return true; }
+                Ext.push({ ext: text, size, operator, unit, state });
             });
             chrome.storage.sync.set({ Ext: Ext });
             return;
         }
         if (option == "Type") {
             let Type = new Array();
-            $("#typeList tr").each(function () {
-                const _this = $(this);
-                let GetText = _this.find("[name=text]").val();
-                let GetSize = parseInt(_this.find("[name=size]").val());
-                let GetState = _this.find("[name=state]").prop("checked");
-                if (isEmpty(GetText)) { return true; }
-                if (isEmpty(GetSize)) { GetSize = 0; }
-                GetText = GetText.trim();
-                const test = GetText.split("/");
+            $("#typeList tr").each(function (index) {
+                if (index === 0) return true;
+
+                const { text, size, operator, unit, state } = SaveGetVal($(this));
+
+                if (isEmpty(text)) { return true; }
+                const test = text.split("/");
                 if (test.length == 2 && !isEmpty(test[0]) && !isEmpty(test[1])) {
-                    Type.push({ type: GetText.toLowerCase(), size: GetSize, state: GetState });
+                    Type.push({ type: text, size, operator, unit, state });
                 }
             });
             chrome.storage.sync.set({ Type: Type });
@@ -374,7 +415,9 @@ function Save(option, sec = 0) {
         }
         if (option == "Regex") {
             let Regex = new Array();
-            $("#regexList tr").each(function () {
+            $("#regexList tr").each(function (index) {
+                if (index === 0) return true;
+
                 const _this = $(this);
                 let GetType = _this.find("[name=type]").val();
                 let GetRegex = _this.find("[name=regex]").val();
@@ -395,7 +438,9 @@ function Save(option, sec = 0) {
         }
         if (option == "blockUrl") {
             let blockUrl = new Array();
-            $("#blockUrlList tr").each(function () {
+            $("#blockUrlList tr").each(function (index) {
+                if (index === 0) return true;
+
                 const _this = $(this);
                 let url = _this.find("[name=url]").val();
                 let GetState = _this.find("[name=state]").prop("checked");

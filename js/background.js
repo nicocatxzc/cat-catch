@@ -301,10 +301,15 @@ function save(tabId) {
     clearTimeout(debounce);
     debounceTime = Date.now();
     debounceCount = 0;
-    (chrome.storage.session ?? chrome.storage.local).set({ MediaData: cacheData }, function () {
-        chrome.runtime.lastError && console.log(chrome.runtime.lastError);
-    });
-    cacheData[tabId] && SetIcon({ number: cacheData[tabId].length, tabId: tabId });
+    if (cacheData[tabId]) {
+        // 单个标签数据超过99条 不再保存到storage
+        if (cacheData[tabId]?.length <= 99) {
+            (chrome.storage.session ?? chrome.storage.local).set({ MediaData: cacheData }, function () {
+                chrome.runtime.lastError && console.log(chrome.runtime.lastError);
+            });
+        }
+        SetIcon({ number: cacheData[tabId].length, tabId: tabId });
+    }
 }
 
 /**
@@ -580,6 +585,7 @@ chrome.windows.onFocusChanged.addListener(function (activeInfo) {
  */
 chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
     if (isSpecialPage(tab.url) || tabId <= 0 || !G.initSyncComplete) { return; }
+    // console.log('onUpdated', tabId, changeInfo, tab);
     if (changeInfo.status && changeInfo.status == "loading" && G.autoClearMode == 2) {
         G.urlMap.delete(tabId);
         chrome.alarms.get("save", function (alarm) {
@@ -618,9 +624,10 @@ chrome.tabs.onUpdated.addListener(function (tabId, changeInfo, tab) {
  */
 chrome.webNavigation.onCommitted.addListener(function (details) {
     if (isSpecialPage(details.url) || details.tabId <= 0 || !G.initSyncComplete) { return; }
+    // console.log('onCommitted', details);
 
     // 刷新页面 检查是否在屏蔽列表中
-    if (details.frameId == 0 && details.transitionType == "reload") {
+    if (details.frameId == 0) {
         G.blockUrlSet.delete(details.tabId);
         if (isLockUrl(details.url)) {
             G.blockUrlSet.add(details.tabId);
@@ -686,13 +693,12 @@ chrome.tabs.onRemoved.addListener(function (tabId) {
     });
     if (G.initSyncComplete) {
         G.blockUrlSet.has(tabId) && G.blockUrlSet.delete(tabId);
+        G.damnUrlSet.has(tabId) && G.damnUrlSet.delete(tabId);
     }
 });
 
-/**
- * 浏览器 扩展快捷键
- */
-chrome.commands.onCommand.addListener(function (command) {
+// 右键菜单 和 快捷键 复用函数
+const runCommands = (command, data) => {
     if (command == "auto_down") {
         if (G.featAutoDownTabId.has(G.tabId)) {
             G.featAutoDownTabId.delete(G.tabId);
@@ -728,7 +734,40 @@ chrome.commands.onCommand.addListener(function (command) {
         }
         scriptTabid.add(G.tabId);
         chrome.tabs.reload(G.tabId, { bypassCache: true });
+    } else if (command == "preview") {
+        chrome.tabs.create({ url: `preview.html?tabId=${G.tabId}` });
+    } else if (command == "image-save") {
+        chrome.downloads.download({
+            url: data.srcUrl,
+            saveAs: G.saveAs
+        }, () => {
+            chrome.runtime.lastError && console.error(chrome.runtime.lastError);
+            G.downDataImageSave = data;
+        });
     }
+}
+chrome.downloads.onChanged.addListener(function (item) {
+    if (G.catDownload) { delete G.downDataImageSave; return; }
+    const errorList = ["SERVER_BAD_CONTENT", "SERVER_UNAUTHORIZED", "SERVER_FORBIDDEN", "SERVER_UNREACHABLE", "SERVER_CROSS_ORIGIN_REDIRECT", "SERVER_FAILED", "NETWORK_FAILED"];
+    if (item.error && errorList.includes(item.error.current) && G.downDataImageSave) {
+        const data = { requestHeaders: { referer: G.downDataImageSave.pageUrl }, requestId: G.tabId, url: G.downDataImageSave.srcUrl };
+        chrome.tabs.create({ url: `downloader.html?JSON=${JSON.stringify(data)}&autoClose=true`, active: false });
+        delete G.downDataImageSave;
+    }
+});
+
+/**
+ * 浏览器 扩展快捷键
+ */
+chrome.commands.onCommand.addListener(function (command) {
+    runCommands(command);
+});
+
+/**
+ * 监听 右键菜单事件
+ */
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+    runCommands(info.menuItemId, info);
 });
 
 /**
@@ -747,6 +786,37 @@ chrome.webNavigation.onCompleted.addListener(function (details) {
     }
 });
 
+// 操作符检查
+function operatorCheck(size, Obj) {
+    const unitNumber = {
+        "B": 1,
+        "BYTE": 1,
+        "KB": 1024,
+        "MB": 1048576,
+        "GB": 1073741824
+    };
+    const unit = (Obj.unit || "B");
+    const targetSize = Obj.size * (unitNumber[unit] || 1);
+    switch (Obj.operator) {
+        case "=":
+            return size == targetSize;
+        case "<":
+            return size < targetSize;
+        case ">":
+            return size > targetSize;
+        case "<=":
+            return size <= targetSize;
+        case ">=":
+            return size >= targetSize;
+        case "!=":
+            return size != targetSize;
+        case "~":
+            return (Obj.min ? size >= Obj.min * (unitNumber[unit] || 1) : true) && (Obj.max ? size <= Obj.max * (unitNumber[unit] || 1) : true);
+        default:
+            return size <= targetSize;
+    }
+}
+
 /**
  * 检查扩展名和大小
  * @param {String} ext 
@@ -757,7 +827,9 @@ function CheckExtension(ext, size) {
     const Ext = G.Ext.get(ext);
     if (!Ext) { return false; }
     if (!Ext.state) { return "break"; }
-    if (Ext.size != 0 && size != undefined && size <= Ext.size * 1024) { return "break"; }
+    if (Ext.size != 0 && size != undefined && !operatorCheck(size, Ext)) {
+        return "break";
+    }
     return true;
 }
 
@@ -771,7 +843,9 @@ function CheckType(dataType, dataSize) {
     const typeInfo = G.Type.get(dataType.split("/")[0] + "/*") || G.Type.get(dataType);
     if (!typeInfo) { return false; }
     if (!typeInfo.state) { return "break"; }
-    if (typeInfo.size != 0 && dataSize != undefined && dataSize <= typeInfo.size * 1024) { return "break"; }
+    if (typeInfo.size != 0 && dataSize != undefined && !operatorCheck(dataSize, typeInfo)) {
+        return "break";
+    }
     return true;
 }
 

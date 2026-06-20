@@ -426,13 +426,13 @@
     "message": "QoS级别"
   },
   "mqttQos0": {
-    "message": "(最多一次)"
+    "message": "0(最多一次)"
   },
   "mqttQos1": {
-    "message": "(至少一次)"
+    "message": "1(至少一次)"
   },
   "mqttQos2": {
-    "message": "(确保一次)"
+    "message": "2(确保一次)"
   },
   "mqttDataFormat": {
     "message": "数据格式"
@@ -519,7 +519,7 @@
     "message": "打开下载目录"
   },
   "downloadDir": {
-    "message": "打载目录"
+    "message": "下载目录"
   },
   "sendFfmpeg": {
     "message": "发送到在线ffmpeg"
@@ -1018,5 +1018,26 @@
   },
   "isBlockedSite": {
     "message": "该网站要求禁止运行本程序"
+  },
+  "onlineFFmpeg": {
+    "message": "在线ffmpeg"
+  },
+  "ffmpegIsNotReady": {
+    "message": "在线ffmpeg服务未就绪, 请稍后再试"
+  },
+  "iframeFFmpeg": {
+    "message": "嵌套在线ffmpeg"
+  },
+  "send2localTips": {
+    "message": "是否合并数据发送？点击【确定】合并，点击【取消】逐条发送。"
+  },
+  "removeFailedPreviewFiles": {
+    "message": "删除无法预览的文件"
+  },
+  "save": {
+    "message": "保存"
+  },
+  "contextMenus": {
+    "message": "右键菜单"
   }
 }

@@ -20,38 +20,42 @@
     const CatCatch = document.createElement("div");
     CatCatch.setAttribute("id", "catCatchRecorder");
     CatCatch.innerHTML = `<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYBAMAAAASWSDLAAAAKlBMVEUAAADLlROxbBlRAD16GS5oAjWWQiOCIytgADidUx/95gHqwwTx0gDZqwT6kfLuAAAACnRSTlMA/vUejV7kuzi8za0PswAAANpJREFUGNNjwA1YSxkYTEqhnKZLLi6F1w0gnKA1shdvHYNxdq1atWobjLMKCOAyC3etlVrUAOH4HtNZmLgoAMKpXX37zO1FwcZAwMDguGq1zKpFmTNnzqx0Bpp2WvrU7ttn9py+I8JgLn1R8Pad22vurNkjwsBReHv33junzuyRnOnMwNCSeFH27K5dq1SNgcZxFMnuWrNq1W5VkNntihdv7ToteGcT0C7mIkE1qbWCYjJnM4CqEoWKdoslChXuUgXJqIcLebiphSgCZRhaPDhcDFhdmUMCGIgEAFA+Uc02aZg9AAAAAElFTkSuQmCC" style="-webkit-user-drag: none;width: 20px;">
-    <div id="tips"></div>
-    <span data-i18n="selectVideo">选择视频</span> <select id="videoList" style="max-width: 200px;"></select>
-    <span data-i18n="recordEncoding">录制编码</span> <select id="mimeTypeList" style="max-width: 200px;"></select>
-    <label><input type="checkbox" id="ffmpeg" ${checkboxStyle}><span data-i18n="ffmpeg">使用ffmpeg转码</span></label>
-    <label>
-        <select id="videoBits">
-            <option value="2500000" data-i18n="videoBits">视频码率</option>
-            <option value="2500000">2.5 Mbps</option>
-            <option value="5000000">5 Mbps</option>
-            <option value="8000000">8 Mbps</option>
-            <option value="16000000">16 Mbps</option>
-        </select>
-        <select id="audioBits">
-            <option value="128000" data-i18n="audioBits">视频码率</option>
-            <option value="128000">128 kbps</option>
-            <option value="256000">256 kbps</option>
-        </select>
-        <select id="frameRate">
-            <option value="0" data-i18n="frameRate">帧率</option>
-            <option value="25">25 FPS</option>
-            <option value="30">30 FPS</option>
-            <option value="60">60 FPS</option>
-            <option value="120">120 FPS</option>
-        </select>
-    </label>
-    <div>
-        <button id="getVideo" ${buttonStyle} data-i18n="readVideo">读取视频</button>
-        <button id="start" ${buttonStyle} data-i18n="startRecording">开始录制</button>
-        <button id="stop" ${buttonStyle} data-i18n="stopRecording">停止录制</button>
-        <button id="hide" ${buttonStyle} data-i18n="hide">隐藏</button>
-        <button id="close" ${buttonStyle} data-i18n="close">关闭</button>
-    </div>`;
+    <div id="catCatchRecorderContent" style="display: flex; flex-direction: column; align-items: flex-start;">
+        <div id="tips"></div>
+        <span data-i18n="selectVideo">选择视频</span> <select id="videoList" style="max-width: 200px;"></select>
+        <span data-i18n="recordEncoding">录制编码</span> <select id="mimeTypeList" style="max-width: 200px;"></select>
+        <label><input type="checkbox" id="ffmpeg" ${checkboxStyle}><span data-i18n="ffmpeg">使用ffmpeg转码</span></label>
+        <label><input type="checkbox" id="autoSave1"} ${checkboxStyle} data-i18n="save1hour">1小时保存一次</label>
+        <label>
+            <select id="videoBits">
+                <option value="2500000" data-i18n="videoBits">视频码率</option>
+                <option value="2500000">2.5 Mbps</option>
+                <option value="5000000">5 Mbps</option>
+                <option value="8000000">8 Mbps</option>
+                <option value="16000000">16 Mbps</option>
+            </select>
+            <select id="audioBits">
+                <option value="128000" data-i18n="audioBits">视频码率</option>
+                <option value="128000">128 kbps</option>
+                <option value="256000">256 kbps</option>
+            </select>
+            <select id="frameRate">
+                <option value="0" data-i18n="frameRate">帧率</option>
+                <option value="25">25 FPS</option>
+                <option value="30">30 FPS</option>
+                <option value="60">60 FPS</option>
+                <option value="120">120 FPS</option>
+            </select>
+        </label>
+        <div>
+            <button id="getVideo" ${buttonStyle} data-i18n="readVideo">读取视频</button>
+            <button id="start" ${buttonStyle} data-i18n="startRecording">开始录制</button>
+            <button id="stop" ${buttonStyle} data-i18n="stopRecording">停止录制</button>
+            <button id="hide" ${buttonStyle} data-i18n="hide">隐藏</button>
+            <!--button id="close" ${buttonStyle} data-i18n="close">关闭</button-->
+        </div>
+    </div>
+    `;
     CatCatch.style = `
         position: fixed;
         z-index: 999999;
@@ -78,6 +82,40 @@
     // 页面插入Shadow DOM
     document.getElementsByTagName('html')[0].appendChild(divShadow);
 
+
+    // 处理 sandbox iframe
+    setupIframeProcessing = () => {
+        document.addEventListener('DOMContentLoaded', () => {
+            const processIframe = (iframe) => {
+                if (iframe && iframe.hasAttribute && iframe.hasAttribute('sandbox')) {
+                    const clonedIframe = iframe.cloneNode(true);
+                    clonedIframe.removeAttribute('sandbox');
+                    if (iframe.parentNode) {
+                        iframe.parentNode.replaceChild(clonedIframe, iframe);
+                    }
+                }
+            };
+
+            document.querySelectorAll('iframe').forEach(processIframe);
+
+            const observer = new MutationObserver((mutationsList) => {
+                for (const mutation of mutationsList) {
+                    if (mutation.type === 'childList') {
+                        mutation.addedNodes.forEach(node => {
+                            if (node.nodeName === 'IFRAME') {
+                                processIframe(node);
+                            } else if (node.querySelectorAll) {
+                                node.querySelectorAll('iframe').forEach(processIframe);
+                            }
+                        });
+                    }
+                }
+            });
+            observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+        });
+    }
+    setupIframeProcessing();
+
     const $tips = CatCatch.querySelector("#tips");
     const $videoList = CatCatch.querySelector("#videoList");
     const $mimeTypeList = CatCatch.querySelector("#mimeTypeList");
@@ -89,15 +127,27 @@
     let option = { mimeType: 'video/webm;codecs=vp9,opus' };
 
     CatCatch.querySelector("#hide").addEventListener('click', function (event) {
-        CatCatch.style.display = "none";
+        const content = CatCatch.querySelector("#catCatchRecorderContent").style;
+        if (content.display === "none") {
+            content.display = "flex";
+            CatCatch.style.opacity = "";
+        } else {
+            content.display = "none";
+            CatCatch.style.opacity = "0.5";
+        }
     });
-    CatCatch.querySelector("#close").addEventListener('click', function (event) {
-        recorder?.state && recorder.stop();
-        CatCatch.style.display = "none";
-        window.postMessage({ action: "catCatchToBackground", Message: "script", script: "recorder.js", refresh: false });
+    CatCatch.querySelector("img").addEventListener('click', function (event) {
+        CatCatch.querySelector("#hide").click();
     });
 
+    // CatCatch.querySelector("#close").addEventListener('click', function (event) {
+    //     recorder?.state && recorder.stop();
+    //     CatCatch.style.display = "none";
+    //     window.postMessage({ action: "catCatchToBackground", Message: "script", script: "recorder.js", refresh: false });
+    // });
+
     function init() {
+        clearInterval(autoSave1Timer);
         getVideo();
         $start.style.display = 'inline';
         $stop.style.display = 'none';
@@ -110,14 +160,14 @@
             const supported = [];
             types.forEach((type) => {
                 const mimeType = `${media}/${type}`;
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    supported.push(mimeType);
+                }
                 codecs.forEach((codec) => [`${mimeType};codecs=${codec}`].forEach(variation => {
                     if (MediaRecorder.isTypeSupported(variation)) {
                         supported.push(variation);
                     }
                 }));
-                if (MediaRecorder.isTypeSupported(mimeType)) {
-                    supported.push(mimeType);
-                }
             });
             return supported;
         };
@@ -145,13 +195,27 @@
     setMimeType();
     // #endregion 视频编码选择
 
+    // 判断是否是真实的媒体元素，过滤掉一些没有实际内容的占位元素
+    const isRealMediaElement = (media) => {
+        return (media.src || media.currentSrc) ||               // 有地址
+            media.currentTime > 0 ||                          // 有播放进度
+            media.readyState >= 2 ||                          // 已经加载了部分数据
+            (media.videoWidth > 0 || media.videoHeight > 0) || // 有视频尺寸
+            media.networkState !== 3;                           // 网络状态不是 NETWORK_NO_SOURCE
+    }
+
     // #region 获取视频列表
     function getVideo() {
         videoList = [];
         $videoList.options.length = 0;
         document.querySelectorAll("video, audio").forEach(function (video, index) {
-            if (video.currentSrc) {
-                const src = video.currentSrc.split("/").pop();
+            if (isRealMediaElement(video)) {
+                const rawSrc = video.currentSrc || video.src || "";
+                const fileName = rawSrc
+                    .split(/[?#]/)[0]
+                    .split("/")
+                    .pop();
+                const src = fileName || `${i18n("video", "视频")}${index + 1}`;
                 videoList.push(video);
                 $videoList.options.add(new Option(src, index));
             }
@@ -165,11 +229,13 @@
     // #endregion 获取视频列表
 
     // 获取兼容的 captureStream 方法
+    let isMozCaptureStream = false;
     function getCaptureStreamMethod(element) {
         if (element.captureStream) {
             return element.captureStream.bind(element);
         }
         if (element.mozCaptureStream) {
+            isMozCaptureStream = true;
             return element.mozCaptureStream.bind(element);
         }
         if (element.webkitCaptureStream) {
@@ -177,6 +243,9 @@
         }
         return null;
     }
+
+    // 每1小时 保存一次
+    let autoSave1Timer = null;
 
     CatCatch.querySelector("#start").addEventListener('click', function (event) {
         if (!MediaRecorder.isTypeSupported(option.mimeType)) {
@@ -194,6 +263,13 @@
                     throw new Error(i18n("recordingNotSupported", "不支持录制"));
                 }
                 stream = frameRate ? captureStream(frameRate) : captureStream();
+
+                // Firefox 的 captureStream 录制时没有声音，这里使用 Web Audio API 绕过修补问题
+                if (isMozCaptureStream) {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    source.connect(audioCtx.destination);
+                }
             } catch (e) {
                 console.log(e);
                 $tips.innerHTML = i18n("recordingNotSupported", "不支持录制");
@@ -226,8 +302,13 @@
                 $stop.style.display = 'inline';
                 $start.style.display = 'none';
                 $tips.innerHTML = i18n("recording", "视频录制中");
+
+                if (CatCatch.querySelector("#autoSave1").checked) {
+                    autoSave1();
+                }
             }
             recorder.onstop = function (event) {
+                clearInterval(autoSave1Timer);
                 $tips.innerHTML = i18n("stopRecording", "停止录制");
                 init();
             }
@@ -256,6 +337,19 @@
         }
     });
 
+    CatCatch.querySelector("#autoSave1").addEventListener('change', autoSave1);
+    function autoSave1() {
+        clearInterval(autoSave1Timer);
+        if (CatCatch.querySelector("#autoSave1").checked && recorder?.state === 'recording') {
+            autoSave1Timer = setInterval(function () {
+                if (recorder) {
+                    recorder.stop();
+                    recorder.start();
+                }
+            }, 3600000);
+        }
+    }
+
     // #region 移动逻辑
     let x, y;
     function move(event) {
@@ -273,7 +367,7 @@
     // #endregion 移动逻辑
 
     // i18n
-    if (window.CatCatchI18n) {
+    if (window.CatCatchI18n && CatCatch) {
         CatCatch.querySelectorAll('[data-i18n]').forEach(function (element) {
             element.innerHTML = window.CatCatchI18n[element.dataset.i18n][language];
         });
@@ -282,7 +376,7 @@
         });
     }
     function i18n(key, original = "") {
-        if (!window.CatCatchI18n) { return original };
+        if (!window.CatCatchI18n || !CatCatch) { return original };
         return window.CatCatchI18n[key][language];
     }
 })();

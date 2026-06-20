@@ -1,8 +1,10 @@
 // url 参数解析
 const params = new URL(location.href).searchParams;
 const _requestId = params.get("requestId") ? params.get("requestId").split(",") : [];   // 要下载得资源ID
+const _JSON = params.get("JSON") ? JSON.parse(params.get("JSON")) : null;   // 直接传递数据的参数
 const _ffmpeg = params.get("ffmpeg");   // 启用在线FFmpeg
 let _downStream = params.get("downStream"); // 启用边下边存 流式下载
+const _autoClose = params.get("autoClose"); // 下载完成后自动关闭页面
 const _data = [];   // 通过_requestId获取得到得数据
 const _taskId = Date.parse(new Date()); // 配合ffmpeg使用的任务ID 以便在线ffmpeg通过ID知道文件属于哪些任务
 let _tabId = null;  // 当前页面tab id
@@ -10,6 +12,13 @@ let _index = null;  // 当前页面 tab index
 
 // 是否表单提交下载 表单提交 不使用自定义文件名
 const downloadData = localStorage.getItem('downloadData') ? JSON.parse(localStorage.getItem('downloadData')) : [];
+
+let iframeFFmpeg = null; // iframe FFmpeg窗口对象
+let iframeFFmpegReady = false; // iframe FFmpeg是否准备就绪
+
+if (_JSON) {
+    _data.push(_JSON);
+}
 
 awaitG(() => {
     loadCSS();
@@ -19,7 +28,7 @@ awaitG(() => {
         _index = tabs.index;
 
         // 如果没有requestId 显示 提交表单
-        if (!_requestId.length) {
+        if (!_requestId.length && !_JSON) {
             $("#downStream").prop("checked", G.downStream);
             $("#getURL, .newDownload").toggle();
             $("#getURL_btn").click(function () {
@@ -70,18 +79,34 @@ awaitG(() => {
     });
 });
 
-function start() {
+const createIframeFFmpeg = (callback) => {
+    if (!iframeFFmpeg) {
+        iframeFFmpeg = document.createElement('iframe');
+        document.querySelector("#iframeBox").appendChild(iframeFFmpeg);
+        iframeFFmpeg.onload = function () {
+            iframeFFmpegReady = true;
+            callback && callback();
+        };
+        iframeFFmpeg.src = G.ffmpegConfig.url + '?_=' + new Date().getTime();
+    }
+    return iframeFFmpeg;
+}
 
+function start() {
     // 提前打开ffmpeg页面
     if (_ffmpeg) {
-        chrome.runtime.sendMessage({
-            Message: "catCatchFFmpeg",
-            action: "openFFmpeg",
-            extra: i18n.waitingForMedia
-        });
+        if (G.iframeFFmpeg) {
+            createIframeFFmpeg();
+        } else {
+            chrome.runtime.sendMessage({
+                Message: "catCatchFFmpeg",
+                action: "openFFmpeg",
+                extra: i18n.waitingForMedia
+            });
+        }
     }
 
-    $("#autoClose").prop("checked", G.downAutoClose);
+    $("#autoClose").prop("checked", _autoClose || G.downAutoClose);
     streamSaver.mitm = G.streamSaverConfig.url;
 
     const $downBox = $("#downBox"); // 下载列表容器
@@ -316,19 +341,21 @@ function start() {
         }
 
         // 以下为在线ffmpeg返回结果
-        if (Message.Message != "catCatchFFmpegResult" || Message.state != "ok" || _tabId == 0 || Message.tabId != _tabId) { return; }
+        if (Message.Message != "catCatchFFmpegResult" || _tabId == 0 || Message.tabId != _tabId) { return; }
 
         // 发送状态提示
-        const $dom = itemDOM.get(Message.index);
-        $dom && $dom.progressText.html(i18n.hasSent);
-        down.buffer[Message.index] = null; //清空buffer
+        if (Message.state == "ok") {
+            const $dom = itemDOM.get(Message.index);
+            $dom && $dom.progressText.html(i18n.hasSent);
+            down.buffer[Message.index] = null; //清空buffer
+        }
 
         // 全部发送完成 检查自动关闭
-        if (down.success == down.total) {
+        if (down.success == down.total && Message.state == "done") {
             if ($("#autoClose").prop("checked")) {
                 setTimeout(() => {
                     closeTab();
-                }, Math.ceil(Math.random() * 999));
+                }, 1000);
             }
         }
     });
@@ -352,7 +379,7 @@ function start() {
             if ($("#autoClose").prop("checked")) {
                 setTimeout(() => {
                     closeTab();
-                }, Math.ceil(Math.random() * 999));
+                }, 1000);
             }
         }
     });
@@ -384,6 +411,34 @@ function sendFile(action, data, fragment) {
     if (data instanceof ArrayBuffer) {
         data = ArrayBufferToBlob(data, { type: fragment.contentType });
     }
+
+    // 嵌套在线ffmpeg模式
+    if (G.iframeFFmpeg) {
+        document.querySelector("#iframeBox").style.display = "block";
+        const baseData = {
+            action: action,
+            title: stringModify(fragment.title),
+            tabId: _tabId,
+            data: data,
+            version: G.ffmpegConfig.version,
+            index: fragment.index
+        };
+        if (action === "merge") {
+            baseData.taskId = _taskId;
+            baseData.quantity = _data.length;
+        }
+        if (!iframeFFmpeg) {
+            createIframeFFmpeg(() => {
+                iframeFFmpeg.contentWindow.postMessage(baseData, '*');
+            });
+        } else if (iframeFFmpegReady) {
+            iframeFFmpeg.contentWindow.postMessage(baseData, '*');
+        } else {
+            setTimeout(sendFile, 500, action, data, fragment);
+        }
+        return;
+    }
+
     chrome.tabs.query({ url: G.ffmpegConfig.url + "*" }, function (tabs) {
         // 等待ffmpeg 打开并且可用
         if (tabs.length === 0) {
@@ -415,7 +470,6 @@ function sendFile(action, data, fragment) {
             baseData.taskId = _taskId;
             baseData.quantity = _data.length;
         }
-
         chrome.runtime.sendMessage(baseData);
     });
 }

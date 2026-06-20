@@ -23,6 +23,18 @@ function secToTime(sec) {
 }
 
 /**
+* 格式化比特率
+* @param {Number} bps 比特率
+* @return {String} 格式化后的比特率字符串
+*/
+function formatBitrate(bps) {
+    if (bps >= 1000 * 1000) {
+        return (bps / 1000 / 1000).toFixed(2) + ' Mbps';
+    }
+    return (bps / 1000).toFixed(2) + ' kbps';
+}
+
+/**
  * 字节转换成大小
  * @param {Number} byte 大小
  * @returns {String} 格式化后的文件大小
@@ -186,90 +198,81 @@ function splitString(text, separator) {
 }
 
 /**
- * 模板的函数处理
+ * 模板的函数处理处理器映射表
+ */
+const templatesProcessors = {
+    slice: (txt, arg) => txt.slice(...arg),
+    replace: (txt, arg) => txt.replace(...arg),
+    replaceAll: (txt, arg) => txt.replaceAll(...arg),
+    regexp: (txt, arg) => {
+        const match = txt.match(new RegExp(...arg));
+        if (!match) return "";
+        return match.slice(1).filter(Boolean).map(s => s.trim()).join("");
+    },
+    exists: (txt, arg) => txt ? arg[0]?.replaceAll("*", txt) : (arg[1]?.replaceAll("*", txt) || ""),
+    prepend: (txt, arg) => (arg[0] || "") + txt,
+    concat: (txt, arg) => txt + (arg[0] || ""),
+    to: (txt, arg) => {
+        const type = arg[0];
+        switch (type) {
+            case "base64":
+                try {
+                    return btoa(encodeURIComponent(txt).replace(/%([0-9A-F]{2})/g, (_, p1) => String.fromCharCode(parseInt(p1, 16))));
+                } catch { return txt; }
+            case "urlEncode":
+                return encodeURIComponent(txt);
+            case "urlDecode":
+                return decodeURIComponent(txt);
+            case "lowerCase":
+                return txt.toLowerCase();
+            case "upperCase":
+                return txt.toUpperCase();
+            case "trim":
+                return txt.trim();
+            case "filter":
+                return stringModify(txt.trim());
+            default:
+                return txt;
+        }
+    },
+    find: (txt, arg, data) => {
+        if (data?.pageDOM && data.pageDOM instanceof Document) {
+            try {
+                return data.pageDOM.querySelector(arg[0])?.innerText?.trim() || "";
+            } catch { return ""; }
+        }
+        return "";
+    },
+    filter: (txt, arg) => stringModify(txt, arg[0]),
+    prompt: (txt) => window.prompt("", txt) || ""
+};
+
+/**
+ * 模板的函数链式处理
  * @param {String} text 文本
- * @param {String} action 函数名
- * @param {Object} data 填充的数据
+ * @param {String} actionStr 函数链管道字符串 (如 "slice:0,5 | to:upperCase")
+ * @param {Object} data 外部传入的数据对象
  * @returns {String} 返回处理后的字符串
  */
-function templatesFunction(text, action, data) {
-    text = isEmpty(text) ? "" : text.toString();
-    action = splitString(action, "|");
-    for (let item of action) {
-        let action = item.trim();   // 函数
-        let arg = [];   //参数
-        // 查找 ":" 区分函数与参数
-        const colon = item.indexOf(":");
-        if (colon != -1) {
-            action = item.slice(0, colon).trim();
-            arg = splitString(item.slice(colon + 1).trim(), ",").map(item => {
-                // return item.trim().replace(/^['"]|['"]$/g, "");
-                return item.trim().replace(/^(['"])([\s\S]*)\1$/, '$2');
+function templatesFunction(text, actionStr, data) {
+    text = isEmpty(text) ? "" : String(text);
+    const actions = splitString(actionStr, "|");
+
+    for (const item of actions) {
+        let actionName = item.trim();
+        let args = [];
+        const colonIndex = item.indexOf(":");
+
+        if (colonIndex !== -1) {
+            actionName = item.slice(0, colonIndex).trim();
+            args = splitString(item.slice(colonIndex + 1).trim(), ",").map(arg => {
+                return arg.trim().replace(/^(['"])([\s\S]*)\1$/, '$2');
             });
         }
-        // 字符串不允许为空 除非 exists find prompt函数
-        if (isEmpty(text) && !["exists", "find", "prompt"].includes(action)) { return "" };
-        // 参数不能为空 除非 filter prompt函数
-        if (arg.length == 0 && !["filter", "prompt"].includes(action)) { return text }
-
-        if (action == "slice") {
-            text = text.slice(...arg);
-        } else if (action == "replace") {
-            text = text.replace(...arg);
-        } else if (action == "replaceAll") {
-            text = text.replaceAll(...arg);
-        } else if (action == "regexp") {
-            const result = text.match(new RegExp(...arg));
-            text = "";
-            if (result && result.length >= 2) {
-                for (let i = 1; i < result.length; i++) {
-                    if (result[i]) {
-                        text += result[i].trim();
-                    }
-                }
-            }
-        } else if (action == "exists") {
-            if (text) {
-                text = arg[0].replaceAll("*", text);
-                continue;
-            }
-            if (arg[1]) {
-                text = arg[1].replaceAll("*", text);
-                continue;
-            }
-            text = "";
-        } else if (action == "prepend") {
-            text = arg[0] + text;
-        } else if (action == "concat") {
-            text = text + arg[0];
-        } else if (action == "to") {
-            if (arg[0] == "base64") {
-                text = window.Base64 ? Base64.encode(text) : btoa(unescape(encodeURIComponent(text)));
-            } else if (arg[0] == "urlEncode") {
-                text = encodeURIComponent(text);
-            } else if (arg[0] == "urlDecode") {
-                text = decodeURIComponent(text);
-            } else if (arg[0] == "lowerCase") {
-                text = text.toLowerCase();
-            } else if (arg[0] == "upperCase") {
-                text = text.toUpperCase();
-            } else if (arg[0] == "trim") {
-                if (text) { text = text.trim(); }
-            } else if (arg[0] == "filter") {
-                if (text) { text = text.trim(); }
-                text = stringModify(text);
-            }
-        } else if (action == "find") {
-            text = "";
-            if (data.pageDOM) {
-                try {
-                    text = data.pageDOM.querySelector(arg[0]).innerText?.trim();
-                } catch (e) { text = ""; }
-            }
-        } else if (action == "filter") {
-            text = stringModify(text, arg[0]);
-        } else if (action == "prompt") {
-            text = window.prompt("", text);
+        if (isEmpty(text) && !["exists", "find", "prompt"].includes(actionName)) { return ""; }
+        if (args.length === 0 && !["filter", "prompt"].includes(actionName)) { return text; }
+        if (templatesProcessors[actionName]) {
+            text = templatesProcessors[actionName](text, args, data);
         }
     }
     return text;
@@ -306,7 +309,7 @@ function templates(text, data) {
         origin: data.requestHeaders?.origin ?? "",
         initiator: data.requestHeaders?.referer ? data.requestHeaders.referer : data.initiator,
         webUrl: data.webUrl ?? "",
-        title: data._title ?? data.title,
+        title: data._title ?? data.title ?? "NULL",
         pageDOM: data.pageDOM,
         cookie: data.cookie ?? "",
         tabId: data.tabId ?? 0,
@@ -322,7 +325,7 @@ function templates(text, data) {
         minutes: appendZero(date.getMinutes()),
         seconds: appendZero(date.getSeconds()),
         now: Date.now(),
-        timestamp: new Date().toISOString(),
+        timestamp: date.toISOString(),
 
         // 文件名
         fullFileName: data.fullFileName ? data.fullFileName : "",
@@ -333,11 +336,19 @@ function templates(text, data) {
         mobileUserAgent: G.MobileUserAgent,
         userAgent: G.userAgent ? G.userAgent : navigator.userAgent,
     }
+
+    // 替换标题中的路径分隔符 避免作为文件名解析为路径
+    trimData.title = trimData.title.replace(/[/\\]/g, "_");
+
     const _data = { ...data, ...trimData };
     text = text.replace(reTemplates, function (original, tag, action) {
         tag = tag.trim();
         // 特殊标签 data 返回所有数据
-        if (tag == 'data') { return JSON.stringify(trimData); }
+        if (tag == 'data') {
+            // 删除一些不必要发送的数据
+            const { pageDOM, year, month, date, day, fullDate, time, hours, minutes, seconds, mobileUserAgent, ...filtered } = trimData;
+            return JSON.stringify(filtered);
+        }
         if (action) {
             return templatesFunction(_data[tag], action.trim(), _data);
         }
@@ -503,7 +514,13 @@ function clearRedundant() {
 function stringModify(str, text) {
     if (!str) { return str; }
     str = filterFileName(str, text);
-    return str.replaceAll("\\", "&bsol;").replaceAll("/", "&sol;");
+    str = str.replace(/[\\/]/g, function (match) {
+        return text || {
+            '\\': '&bsol;',
+            '/': '&sol;'
+        }[match];
+    });
+    return str;
 }
 
 /**
@@ -564,37 +581,20 @@ function flattenObject(obj, prefix = '') {
 }
 
 /**
- * 发送数据到本地
- * @param {String} action 发送类型
- * @param {Object|Srting} data 发送的数据
- * @param {Number} tabId 发送数据的标签页ID
+ * 核心发送请求逻辑 (公共函数)
+ * @param {Object|String} postData 最终组装好要发送的 Payload 数据
+ * @param {Object} templateContext 用于替换 URL 和 Header 模板的上下文变量 (包含 tabId, action 等)
  */
-function send2local(action, data, tabId = 0) {
+function executeCoreRequest(postData, templateContext) {
     return new Promise((resolve, reject) => {
-
-        // 请求方式
         const option = { method: G.send2localMethod };
 
-        // 处理替换模板
-        let body = G.send2localBody;
-        // 处理 addKey 请求
-        if (action == 'addKey' || typeof data === 'string') {
-            body = G.send2localBody.replaceAll('${data}', `"${data}"`);
-            data = { tabId: tabId };
-        }
-
-        data.action = action;
-        let postData = templates(body, data);
-
-        // 转为对象
-        postData = JSONparse(postData, { action, data, tabId });
-
         try {
-            // 处理URL中的模板字符串并检查合法性
-            let send2localURL = templates(G.send2localURL, data);
+            // 1. 处理 URL 模板并检查合法性
+            let send2localURL = templates(G.send2localURL, templateContext);
             send2localURL = new URL(send2localURL);
 
-            // GET请求拼接参数
+            // 2. 处理 GET 请求的参数拼接
             if (option.method === 'GET') {
                 const flattenedObj = flattenObject(postData);
                 const urlParams = new URLSearchParams(flattenedObj);
@@ -602,7 +602,7 @@ function send2local(action, data, tabId = 0) {
                     ? `${send2localURL.search}&${urlParams}`
                     : `?${urlParams}`;
             }
-            // 非GET请求处理不同Content-Type
+            // 3. 处理非 GET 请求的不同 Content-Type
             else {
                 const contentType = {
                     0: 'application/json;charset=utf-8',
@@ -610,6 +610,7 @@ function send2local(action, data, tabId = 0) {
                     2: 'application/x-www-form-urlencoded',
                     3: 'text/plain'
                 }[G.send2localType];
+
                 option.headers = { 'Content-Type': contentType };
 
                 switch (contentType) {
@@ -623,7 +624,7 @@ function send2local(action, data, tabId = 0) {
                             formData.append(key, value);
                         });
                         option.body = formData;
-                        delete option.headers['Content-Type']; // 浏览器自动生成boundary
+                        delete option.headers['Content-Type']; // 让浏览器自动生成 boundary
                         break;
                     case 'application/x-www-form-urlencoded':
                         const flattenedObj = flattenObject(postData);
@@ -641,14 +642,65 @@ function send2local(action, data, tabId = 0) {
                 }
             }
 
-            send2localURL = send2localURL.toString();
-            fetch(send2localURL, option)
+            // 4. 处理自定义 Headers
+            if (G.send2localHeaders) {
+                let customHeaders = templates(G.send2localHeaders, templateContext);
+                customHeaders = JSONparse(customHeaders);
+                if (!option.headers) { option.headers = {}; }
+                for (let key in customHeaders) {
+                    option.headers[key] = customHeaders[key];
+                }
+            }
+            // 5. 发起请求
+            fetch(send2localURL.toString(), option)
                 .then(response => resolve(response))
                 .catch(error => reject(error));
+
         } catch (e) {
             reject(e);
         }
     });
+}
+
+/**
+ * 发送单条数据到本地
+ * @param {String} action 发送类型
+ * @param {Object|String} data 发送的数据
+ * @param {Number} tabId 发送数据的标签页ID
+ */
+function send2local(action, data, tabId = 0) {
+    let body = G.send2localBody;
+
+    // 处理 addKey 请求 或 字符串数据
+    if (action === 'addKey' || typeof data === 'string') {
+        body = G.send2localBody.replaceAll('${data}', `"${data}"`);
+        data = { tabId: tabId };
+    }
+    data.action = action;
+    let postData = templates(body, data);
+    postData = JSONparse(postData, { action, data, tabId });
+    return executeCoreRequest(postData, data);
+}
+
+/**
+ * 批量发送对象数组到本地 (一次性发送)
+ * @param {String} action 发送类型
+ * @param {Array} arrayData 发送的对象数组 (例: [{id: 1}, {id: 2}])
+ * @param {Number} tabId 发送数据的标签页ID
+ */
+function send2localArray(action, arrayData, tabId = 0) {
+    if (!Array.isArray(arrayData)) {
+        arrayData = [arrayData];
+    }
+
+    const results = [];
+    arrayData.forEach((item, index) => {
+        results.push(templates("${data}", { ...item, action, index, tabId }));
+    });
+    let body = G.send2localBody.replaceAll('${data}', `[${results.join(",")}]`);
+    let postData = templates(body, { action, tabId });
+    postData = JSONparse(postData, arrayData[0]);
+    return executeCoreRequest(postData, { action, tabId });
 }
 
 function isDamnUrl(url) {
@@ -707,7 +759,7 @@ function openParser(data, options = {}) {
             tabid: data.tabId == -1 ? G.tabId : data.tabId,
             initiator: data.initiator,
             requestHeaders: data.requestHeaders ? JSON.stringify(data.requestHeaders) : undefined,
-            ...Object.fromEntries(Object.entries(options).map(([key, value]) => [key, typeof value === 'boolean' ? 1 : value])),
+            ...Object.fromEntries(Object.entries(options).map(([key, value]) => [key, typeof value === 'boolean' ? (value ? 1 : 0) : value])),
         })}`
         chrome.tabs.create({
             url: url,
@@ -745,4 +797,39 @@ function trimData(originalData) {
     data.urlPanel = undefined;
     data.urlPanelShow = undefined;
     return data;
+}
+
+/**
+ * 获取文件大小
+ * @param {String} url 
+ * @returns {Promise<number>} 文件大小（字节）
+ * 先尝试使用 HEAD 请求获取 Content-Length，如果失败则使用 GET+ Range 请求并解析 Content-Range 来获取大小
+ */
+function getRemoteFileSize(url) {
+    return fetch(url, { method: "HEAD" })
+        .then(function (res) {
+            const size = parseInt(res.headers.get("content-length"), 10);
+            if (size && !isNaN(size)) return size;
+            throw new Error("HEAD no content-length");
+        })
+        .catch(function () {
+            return fetch(url, {
+                method: "GET",
+                headers: {
+                    Range: "bytes=0-0"
+                }
+            }).then(function (res) {
+                const contentRange = res.headers.get("content-range");
+                if (contentRange) {
+                    const match = contentRange.match(/\/(\d+)$/);
+                    if (match) {
+                        const size = parseInt(match[1], 10);
+                        if (size && !isNaN(size)) return size;
+                    }
+                }
+                const size = parseInt(res.headers.get("content-length"), 10);
+                if (size && !isNaN(size)) return size;
+                throw new Error("GET range no size");
+            });
+        });
 }

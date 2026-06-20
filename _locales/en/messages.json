@@ -426,13 +426,13 @@
     "message": "QoS Level"
   },
   "mqttQos0": {
-    "message": "(At most once)"
+    "message": "0(At most once)"
   },
   "mqttQos1": {
-    "message": "(At least once)"
+    "message": "1(At least once)"
   },
   "mqttQos2": {
-    "message": "(Exactly once)"
+    "message": "2(Exactly once)"
   },
   "mqttDataFormat": {
     "message": "Data Format"
@@ -1008,7 +1008,7 @@
     "message": "Always enable deep search"
   },
   "sideurlprotocol": {
-    "message": "Protocolo URL m3u8dl"
+    "message": "m3u8dl URL Protocol"
   },
   "deleteDuplicateFilenames": {
     "message": "Delete duplicate filenames"
@@ -1018,5 +1018,26 @@
   },
   "isBlockedSite": {
     "message": "This site requires blocking the operation of this extension"
+  },
+  "onlineFFmpeg": {
+    "message": "Online FFmpeg"
+  },
+  "ffmpegIsNotReady": {
+    "message": "Online FFmpeg service is not ready, please try again later"
+  },
+  "iframeFFmpeg": {
+    "message": "Use iframe to call FFmpeg"
+  },
+  "send2localTips": {
+    "message": "Merge data before sending? Click 'OK' to merge, or 'Cancel' to send individually."
+  },
+  "removeFailedPreviewFiles": {
+    "message": "Remove failed preview files"
+  },
+  "save": {
+    "message": "Save"
+  },
+  "contextMenus": {
+    "message": "Right-click menu"
   }
 }

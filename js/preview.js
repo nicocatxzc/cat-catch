@@ -19,6 +19,9 @@ class FilePreview {
         this._tabId = -1; // 当前标签ID
         this.currentRange = null; // 当前显示范围
         this.currentPage = 1; // 当前页码
+        this.sourcePageDOM = null; // 源页面DOM
+
+        this.ctrlKeyPressed = false; // Ctrl键状态
 
         // 初始化
         this.init();
@@ -30,6 +33,7 @@ class FilePreview {
         this.parseParams();             // url解析参数
         this.tab = await chrome.tabs.getCurrent();  // 获取当前标签
         this.setupEventListeners();     // 设置事件监听
+        await this.getSourcePageDOM();  // 获取源页面DOM
         await this.loadFileItems();     // 载入数据
         this.setupFilters();            // 设置 后缀/类型 筛选
         this.setOptions();              // 设置选项
@@ -87,15 +91,33 @@ class FilePreview {
                 this.closePreview();
                 return;
             }
-            // ctrl + a
+            // ctrl + a 全选
             if ((event.ctrlKey || event.metaKey) && event.key === 'a' && event.target.tagName != "INPUT") {
                 this.toggleSelection('all');
                 event.preventDefault();
             }
+            // 检查到Ctrl键状态 用于框选时 取消其他选中
+            if (event.key === 'Control') {
+                if (event.repeat) { return; }
+                this.ctrlKeyPressed = true;
+            }
+        });
+        document.addEventListener('keyup', (event) => {
+            if (event.key === 'Control') {
+                this.ctrlKeyPressed = false;
+            }
         });
         // 排序按钮
         document.querySelectorAll('.sort-options input').forEach(input => {
-            input.addEventListener('change', () => this.updateFileList());
+            input.addEventListener('change', () => {
+                // 时长需要尝试播放获取，无法直接初始时长排序，不记忆时长排序选项
+                if (input.name == "sortField" && input.value != "duration") {
+                    sessionStorage.setItem("previewSort", input.value);
+                } else if (input.name == "sortOrder") {
+                    sessionStorage.setItem("previewOrder", input.value);
+                }
+                this.updateFileList();
+            });
         });
         // 正则过滤 监听回车
         document.querySelector('#regular').addEventListener('keypress', (e) => {
@@ -114,6 +136,8 @@ class FilePreview {
         document.querySelector('#copy-selected').addEventListener('click', () => this.copy());
         // 清理数据
         document.querySelector('#clear').addEventListener('click', () => this.clearData());
+        // 删除预览失败的文件
+        document.querySelector('#removeFailedPreviewFiles').addEventListener('click', () => this.removeFailedPreviewFiles());
         // 删除
         document.querySelector('#delete-selected').addEventListener('click', () => this.deleteItem());
         // debug
@@ -191,17 +215,19 @@ class FilePreview {
      * 合并下载
      */
     mergeDownload() {
-        chrome.runtime.sendMessage({
-            Message: "catCatchFFmpeg",
-            action: "openFFmpeg",
-            extra: i18n.waitingForMedia
-        });
+        if (!G.iframeFFmpeg) {
+            chrome.runtime.sendMessage({
+                Message: "catCatchFFmpeg",
+                action: "openFFmpeg",
+                extra: i18n.waitingForMedia
+            });
+        }
         const checkedData = this.getSelectedItems();
         // 都是m3u8 自动合并并发送到ffmpeg
         if (checkedData.every(data => isM3U8(data))) {
             const taskId = Date.parse(new Date());
-            checkedData.forEach((data) => {
-                this.openM3U8(data, { ffmpeg: "merge", quantity: checkedData.length, taskId: taskId, autoDown: true, autoClose: true });
+            checkedData.forEach((data, index) => {
+                this.openM3U8(data, { ffmpeg: "merge", quantity: checkedData.length, taskId: taskId, autoDown: true, autoClose: true, isMaster: index === 0 });
             });
             return;
         }
@@ -494,15 +520,46 @@ class FilePreview {
             this.setupFilters('typeFilters', 'type');
             return;
         }
-        const uniqueValues = [...new Set(this.originalItems.map(item => item[property]))];
+        const currentUniqueValues = [...new Set(this.originalItems.map(item => item[property]))];
+
+        // sessionStorage结构 [{value: '...', checked: true}, ...]
+        let savedData = JSON.parse(sessionStorage.getItem(`preview_${property}_filters`)) || [];
+
+        // 填充记忆的选项状态
+        currentUniqueValues.forEach(val => {
+            const exists = savedData.find(item => item.value === val);
+            if (!exists) {
+                savedData.push({ value: val, checked: true });
+            }
+        });
+
+        //排序 多页中 统一后缀和类型顺序
+        savedData.sort((a, b) => {
+            if (a.value === 'Unknown') return 1;
+            if (b.value === 'Unknown') return -1;
+            return a.value.localeCompare(b.value);
+        });
+
         const filterContainer = document.querySelector(`#${filterId}`);
-        uniqueValues.forEach(value => {
-            if (filterContainer.querySelector(`input[value="${value}"]`)) return;
+        savedData.forEach(item => {
+            if (filterContainer.querySelector(`input[value="${item.value}"]`)) return;
+
             const label = document.createElement('label');
-            label.innerHTML = `<input type="checkbox" name="${property}" value="${value}" checked>${value == 'Unknown' ? value : value.toLowerCase()}`;
-            label.querySelector('input').addEventListener('click', () => this.updateFileList());
+            const isChecked = item.checked ? 'checked' : '';
+            const displayText = item.value === 'Unknown' ? item.value : item.value.toLowerCase();
+            label.innerHTML = `<input type="checkbox" name="${property}" value="${item.value}" ${isChecked}>${displayText}`;
+            const checkbox = label.querySelector('input');
+            checkbox.addEventListener('click', (e) => {
+                const targetItem = savedData.find(d => d.value === e.target.value);
+                if (targetItem) {
+                    targetItem.checked = e.target.checked;
+                }
+                sessionStorage.setItem(`preview_${property}_filters`, JSON.stringify(savedData));
+                this.updateFileList();
+            });
             filterContainer.appendChild(label);
         });
+        sessionStorage.setItem(`preview_${property}_filters`, JSON.stringify(savedData));
     }
 
     setOptions() {
@@ -514,6 +571,13 @@ class FilePreview {
             document.querySelector('#deleteDuplicateFilenames').checked = true;
             this.deleteDuplicateFilenames = true;
         }
+        const previewSort = sessionStorage.getItem("previewSort");
+        const previewOrder = sessionStorage.getItem("previewOrder");
+        document.querySelectorAll(".sort-options input").forEach(input => {
+            if (input.value === previewSort || input.value === previewOrder) {
+                input.checked = true;
+            }
+        });
     }
 
     /**
@@ -537,6 +601,10 @@ class FilePreview {
         data.title = stringModify(data.title);
 
         data.name = isEmpty(data.name) ? data.title + '.' + data.ext : decodeURIComponent(stringModify(data.name));
+
+        Object.defineProperty(data, "pageDOM", {
+            get: () => { return this.sourcePageDOM; }
+        });
 
         data.downFileName = G.TitleName ? templates(G.downFileName, data) : data.name;
         data.downFileName = filterFileName(data.downFileName);
@@ -609,43 +677,39 @@ class FilePreview {
             video.play();
         }
     }
+
     /**
      * 生成预览video标签
      * @param {Object} item 数据
      */
     async generatePreview(item) {
         return new Promise((resolve, reject) => {
-            const getVideoInfo = (video) => {
-                video.pause();
-                videoInfo.height = video.videoHeight;
-                videoInfo.width = video.videoWidth;
-
-                if (video.duration && video.duration != Infinity) {
-                    videoInfo._duration = video.duration;
-                    videoInfo.duration = secToTime(video.duration);
-                }
-
-                // 判断是否为音频文件
-                if (item.type?.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'aac', 'ogg'].includes(item.ext)) {
-                    videoInfo.type = 'audio';
-                    videoInfo.video = null;
-                    videoInfo.height = 0;
-                    videoInfo.width = 0;
-                }
-                resolve(videoInfo);
-            };
             const video = document.createElement('video');
+            const videoInfo = { video: video, height: 0, width: 0, duration: 0, type: 'video' };
+
             video.muted = true;
             video.playsInline = true;
             video.loop = true;
             video.preload = 'metadata';
             video.addEventListener('loadedmetadata', () => {
                 video.currentTime = 0.5;
-                if (video.videoHeight && video.videoWidth) {
-                    getVideoInfo(video);
-                } else {
-                    setTimeout(getVideoInfo, 500, video);
-                }
+                setTimeout(() => {
+                    video.pause();
+                    videoInfo.height = video.videoHeight;
+                    videoInfo.width = video.videoWidth;
+                    if (video.duration && video.duration != Infinity) {
+                        videoInfo._duration = video.duration;
+                        videoInfo.duration = secToTime(video.duration);
+                    }
+                    // 判断是否为音频文件
+                    if (item.type?.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'aac', 'ogg'].includes(item.ext)) {
+                        videoInfo.type = 'audio';
+                        videoInfo.video = null;
+                        videoInfo.height = 0;
+                        videoInfo.width = 0;
+                    }
+                    resolve(videoInfo);
+                }, (video.videoHeight && video.videoWidth) ? 0 : 500);
             });
 
             let hls = null;
@@ -655,7 +719,6 @@ class FilePreview {
                 video.remove();
             };
 
-            const videoInfo = { video: video, height: 0, width: 0, duration: 0, type: 'video' };
             // 处理HLS视频
             if (isM3U8(item)) {
                 if (!Hls.isSupported()) {
@@ -862,7 +925,7 @@ class FilePreview {
                     rect.top + window.scrollY < top + height &&
                     rect.top + rect.height + window.scrollY > top) {
                     item.selected = true;
-                } else {
+                } else if (!this.ctrlKeyPressed) {
                     item.selected = false;
                 }
             });
@@ -893,7 +956,7 @@ class FilePreview {
             tabid: data.tabId == -1 ? this._tabId : data.tabId,
             initiator: data.initiator,
             requestHeaders: data.requestHeaders ? JSON.stringify(data.requestHeaders) : undefined,
-            ...Object.fromEntries(Object.entries(options).map(([key, value]) => [key, typeof value === 'boolean' ? 1 : value])),
+            ...Object.fromEntries(Object.entries(options).map(([key, value]) => [key, typeof value === 'boolean' ? (value ? 1 : 0) : value])),
         })}`
         chrome.tabs.create({ url: url, index: this.tab.index + 1, active: !options.autoDown });
     }
@@ -981,6 +1044,12 @@ class FilePreview {
         this.updateFileList();
     }
 
+    // 删除预览失败的文件
+    removeFailedPreviewFiles() {
+        this.originalItems = this.originalItems.filter(item => !item.previewVideoError);
+        this.updateFileList();
+    }
+
     // 脚本
     srciptList() {
         document.querySelectorAll("[type='script']").forEach((script) => {
@@ -1013,6 +1082,19 @@ class FilePreview {
     checkVersion() {
         if (G.version < 102 || (G.isFirefox && G.version < 128)) {
             document.querySelectorAll("[type='script']").forEach(script => script.style.display = 'none');
+        }
+    }
+
+    // 获取源页面DOM
+    async getSourcePageDOM() {
+        if (!G.getHtmlDOM) { return; }
+        try {
+            const response = await chrome.tabs.sendMessage(this._tabId, { Message: "getPage" }, { frameId: 0 });
+            this.sourcePageDOM = new DOMParser().parseFromString(response, 'text/html');
+            return this.sourcePageDOM;
+        } catch (error) {
+            console.warn("Failed to get source page DOM:", error);
+            throw error;
         }
     }
 }

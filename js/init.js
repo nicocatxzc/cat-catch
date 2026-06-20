@@ -2,7 +2,7 @@
 if (chrome.i18n.getMessage === undefined) {
     chrome.i18n.getMessage = (key) => key;
     fetch(chrome.runtime.getURL("_locales/zh_CN/messages.json")).then(res => res.json()).then(data => {
-        chrome.i18n.getMessage = (key) => data[key].messages;
+        chrome.i18n.getMessage = (key) => data[key].message;
     }).catch((e) => { console.error(e); });
 }
 /**
@@ -72,49 +72,49 @@ G.isMobile = /Mobile|Android|iPhone|iPad/i.test(navigator.userAgent);
 // 所有设置变量 默认值
 G.OptionLists = {
     Ext: [
-        { "ext": "flv", "size": 0, "state": true },
-        { "ext": "hlv", "size": 0, "state": true },
-        { "ext": "f4v", "size": 0, "state": true },
-        { "ext": "mp4", "size": 0, "state": true },
-        { "ext": "mp3", "size": 0, "state": true },
-        { "ext": "wma", "size": 0, "state": true },
-        { "ext": "wav", "size": 0, "state": true },
-        { "ext": "m4a", "size": 0, "state": true },
-        { "ext": "ts", "size": 0, "state": false },
-        { "ext": "webm", "size": 0, "state": true },
-        { "ext": "ogg", "size": 0, "state": true },
-        { "ext": "ogv", "size": 0, "state": true },
-        { "ext": "acc", "size": 0, "state": true },
-        { "ext": "mov", "size": 0, "state": true },
-        { "ext": "mkv", "size": 0, "state": true },
-        { "ext": "m4s", "size": 0, "state": true },
-        { "ext": "m3u8", "size": 0, "state": true },
-        { "ext": "m3u", "size": 0, "state": true },
-        { "ext": "mpeg", "size": 0, "state": true },
-        { "ext": "avi", "size": 0, "state": true },
-        { "ext": "wmv", "size": 0, "state": true },
-        { "ext": "asf", "size": 0, "state": true },
-        { "ext": "movie", "size": 0, "state": true },
-        { "ext": "divx", "size": 0, "state": true },
-        { "ext": "mpeg4", "size": 0, "state": true },
-        { "ext": "vid", "size": 0, "state": true },
-        { "ext": "aac", "size": 0, "state": true },
-        { "ext": "mpd", "size": 0, "state": true },
-        { "ext": "weba", "size": 0, "state": true },
-        { "ext": "opus", "size": 0, "state": true },
-        { "ext": "srt", "size": 0, "state": false },
-        { "ext": "vtt", "size": 0, "state": false },
+        { "ext": "flv", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "hlv", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "f4v", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mp4", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mp3", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "wma", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "wav", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "m4a", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "ts", "size": 0, "operator": ">=", "unit": "KB", "state": false },
+        { "ext": "webm", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "ogg", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "ogv", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "acc", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mov", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mkv", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "m4s", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "m3u8", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "m3u", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mpeg", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "avi", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "wmv", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "asf", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "movie", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "divx", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mpeg4", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "vid", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "aac", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "mpd", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "weba", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "opus", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "ext": "srt", "size": 0, "operator": ">=", "unit": "KB", "state": false },
+        { "ext": "vtt", "size": 0, "operator": ">=", "unit": "KB", "state": false },
     ],
     Type: [
-        { "type": "audio/*", "size": 0, "state": true },
-        { "type": "video/*", "size": 0, "state": true },
-        { "type": "application/ogg", "size": 0, "state": true },
-        { "type": "application/vnd.apple.mpegurl", "size": 0, "state": true },
-        { "type": "application/x-mpegurl", "size": 0, "state": true },
-        { "type": "application/mpegurl", "size": 0, "state": true },
-        { "type": "application/octet-stream-m3u8", "size": 0, "state": true },
-        { "type": "application/dash+xml", "size": 0, "state": true },
-        { "type": "application/m4s", "size": 0, "state": true },
+        { "type": "audio/*", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "video/*", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/ogg", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/vnd.apple.mpegurl", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/x-mpegurl", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/mpegurl", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/octet-stream-m3u8", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/dash+xml", "size": 0, "operator": ">=", "unit": "KB", "state": true },
+        { "type": "application/m4s", "size": 0, "operator": ">=", "unit": "KB", "state": true },
     ],
     Regex: [
         { "type": "ig", "regex": "https://cache\\.video\\.[a-z]*\\.com/dash\\?tvid=.*", "ext": "json", "state": false },
@@ -144,23 +144,34 @@ G.OptionLists = {
     downActive: !G.isMobile,    // 手机端默认不启用 后台下载
     downAutoClose: true,
     downStream: false,
+
+    // Aria2
     aria2Rpc: "http://localhost:6800/jsonrpc",
     enableAria2Rpc: false,
     enableAria2RpcReferer: true,
     aria2RpcToken: "",
+    aria2RpcDir: "",
+
     m3u8AutoDown: true,
     badgeNumber: true,
+
+    // 发送到本地
     send2local: false,
     send2localManual: false,
     send2localURL: "http://127.0.0.1:8000/",
     send2localMethod: 'POST',
     send2localBody: '{"action": "${action}", "data": ${data}, "tabId": "${tabId}"}',
     send2localType: 0,
+    send2localHeaders: "",
+
     popup: false,
     popupMode: 0, // 0:preview.html 1:popup.html 2:window preview.html 3: window popup.html
+
+    // 远程调用
     invoke: false,
     invokeText: `m3u8dlre:"\${url}" --save-dir "%USERPROFILE%\\Downloads" --del-after-done --save-name "\${title}_\${now}" --auto-select \${referer|exists:'-H "Referer: *"'}`,
     invokeConfirm: false,
+
     // m3u8解析器默认参数
     M3u8Thread: 6,
     M3u8Mp4: false,
@@ -169,6 +180,7 @@ G.OptionLists = {
     M3u8StreamSaver: false,
     M3u8Ffmpeg: true,
     M3u8AutoClose: false,
+
     // 第三方服务地址
     onlineServiceAddress: 0,
     chromeLimitSize: 1.8 * 1024 * 1024 * 1024,
@@ -191,8 +203,11 @@ G.OptionLists = {
     mqttQos: 0,
     mqttTitleLength: 100,
     mqttDataFormat: "",
+
     getHtmlDOM: false,
-    damn: false
+    damn: false,
+    iframeFFmpeg: false,
+    contextMenus: false,
 };
 
 // 本地储存的配置
@@ -205,7 +220,7 @@ G.LocalVar = {
 };
 
 // 102版本以上 非Firefox 开启更多功能
-G.isFirefox = (typeof browser == "object");
+G.isFirefox = navigator.userAgent.includes('Firefox') && (typeof browser !== 'undefined' && !!browser.runtime?.getBrowserInfo);
 G.version = navigator.userAgent.match(/(Chrome|Firefox)\/([\d]+)/);
 G.version = G.version && G.version[2] ? parseInt(G.version[2]) : 93;
 
@@ -269,10 +284,26 @@ function InitOptions() {
                 items[key] = G.OptionLists[key];
             }
         }
-        // Ext的Array转为Map类型
-        items.Ext = new Map(items.Ext.map(item => [item.ext, item]));
-        // Type的Array转为Map类型
-        items.Type = new Map(items.Type.map(item => [item.type, { size: item.size, state: item.state }]));
+        // Ext的Array转为Map类型 如果是范围 增加min max属性
+        items.Ext = new Map(items.Ext.map(item => {
+            if (item.operator === undefined) { item.operator = ">="; }
+            if (item.operator === "~") {
+                const [min, max] = item.size.split("-");
+                item.min = min ? parseInt(min) : 0;
+                item.max = max ? parseInt(max) : 0;
+            }
+            return [item.ext, item];
+        }));
+        // Type的Array转为Map类型 如果是范围 增加min max属性
+        items.Type = new Map(items.Type.map(item => {
+            if (item.operator === undefined) { item.operator = ">="; }
+            if (item.operator === "~") {
+                const [min, max] = item.size.split("-");
+                item.min = min ? parseInt(min) : 0;
+                item.max = max ? parseInt(max) : 0;
+            }
+            return [item.type, item];
+        }));
         // 预编译正则匹配
         items.Regex = items.Regex.map(item => {
             let reg = undefined;
@@ -304,6 +335,9 @@ function InitOptions() {
 
         // 侧边栏
         chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: items.sidePanel });
+
+        // 右键菜单注册
+        contextMenusInit(items.contextMenus);
 
         G = { ...items, ...G };
 
@@ -337,11 +371,25 @@ chrome.storage.onChanged.addListener(function (changes, namespace) {
     for (let [key, { oldValue, newValue }] of Object.entries(changes)) {
         newValue ??= G.OptionLists[key];
         if (key == "Ext") {
-            G.Ext = new Map(newValue.map(item => [item.ext, item]));
+            G.Ext = new Map(newValue.map(item => {
+                if (item.operator === "~") {
+                    const [min, max] = item.size.split("-");
+                    item.min = min ? parseInt(min) : 0;
+                    item.max = max ? parseInt(max) : 0;
+                }
+                return [item.ext, item];
+            }));
             continue;
         }
         if (key == "Type") {
-            G.Type = new Map(newValue.map(item => [item.type, { size: item.size, state: item.state }]));
+            G.Type = new Map(newValue.map(item => {
+                if (item.operator === "~") {
+                    const [min, max] = item.size.split("-");
+                    item.min = min ? parseInt(min) : 0;
+                    item.max = max ? parseInt(max) : 0;
+                }
+                return [item.type, item];
+            }));
             continue;
         }
         if (key == "Regex") {
@@ -366,9 +414,61 @@ chrome.storage.onChanged.addListener(function (changes, namespace) {
             chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: newValue });
             continue;
         }
+        if (key == "contextMenus") {
+            contextMenusInit(newValue);
+            continue;
+        }
         G[key] = newValue;
     }
 });
+
+function contextMenusInit(visible = false) {
+    // 注册右键
+    chrome.contextMenus.removeAll(() => {
+        chrome.contextMenus.create({
+            id: "cat-catch",
+            title: i18n.catCatch,
+            contexts: ["page", "image"],
+            visible: visible
+        });
+        chrome.contextMenus.create({
+            id: "image-save",
+            parentId: "cat-catch",
+            title: i18n.save,
+            contexts: ["image"]
+        });
+        chrome.contextMenus.create({
+            id: "enable",
+            parentId: "cat-catch",
+            title: `${i18n.enable} / ${i18n.disable}`,
+            contexts: ["page", "image"]
+        });
+        chrome.contextMenus.create({
+            id: "preview",
+            parentId: "cat-catch",
+            title: i18n.preview,
+            contexts: ["page", "image"]
+        });
+        chrome.contextMenus.create({
+            id: "deepSearch",
+            parentId: "cat-catch",
+            title: i18n.deepSearch,
+            contexts: ["page", "image"]
+        });
+        chrome.contextMenus.create({
+            id: "catch",
+            parentId: "cat-catch",
+            title: i18n.cacheCapture,
+            contexts: ["page", "image"]
+        });
+        chrome.contextMenus.create({
+            id: "auto_down",
+            parentId: "cat-catch",
+            title: i18n.autoDownload,
+            contexts: ["page", "image"]
+        });
+    });
+}
 
 // 扩展升级，清空本地储存
 chrome.runtime.onInstalled.addListener(function (details) {
