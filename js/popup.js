@@ -128,7 +128,7 @@ function AddMedia(data, currentTab = true) {
                     <div><img src="img/invoke.svg" class="icon invoke" title="${i18n.invoke}"/></div>
                 </div>
                 <a href="${data.url}" target="_blank" download="${data.downFileName}">${data.url}</a><br>
-                <a href="${data.url}" target="_blank" download="${data.title}">${data.url}</a>
+                <a href="${data.url}" target="_blank" download="${data.title}">${data.title}</a>
                 <br>
                 <img id="screenshots" class="hide"/>
                 <video id="preview" class="hide" controls></video>
